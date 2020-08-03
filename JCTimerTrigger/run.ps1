@@ -35,8 +35,9 @@ $JCEvents = $JCEventTypes.split(';')
 
 #Trigger via Queue Rest API call to JumpCloud
 $JCEvents | ForEach-Object -Process { 
-    if($check2 -like '*'+$_+'*'){
+    if($check2 -like '* '+$_+' *'){
         $queueMessage = [Microsoft.Azure.Storage.Queue.CloudQueueMessage]::new($_)
-        $JCqueue.CloudQueue.AddMessageAsync($QueueMessage)
+        $queueMessage
+        #$JCqueue.CloudQueue.AddMessageAsync($QueueMessage)
     }
 }
