@@ -146,5 +146,4 @@ if($response.Headers["X-Search_after"] -ne ''){
     Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{"SearchAfter" = ("'"+$response.Headers["X-Search_after"]+"'");"StartTime"=$LastrecordTimestamp} -UpdateExisting
 }
 # Write an information log with the current time.
-#$JCService = "ALL"
 Write-Host "JumpCloud function ran using, Event Filter: $JCService, started: $currentUTCtime, Completed:"(Get-Date).ToUniversalTime()", Processed: $totalrecordcount records"
