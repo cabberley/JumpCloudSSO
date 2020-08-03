@@ -38,6 +38,6 @@ $JCEvents | ForEach-Object -Process {
     if($check2 -like '* '+$_+' *'){
         $queueMessage = [Microsoft.Azure.Storage.Queue.CloudQueueMessage]::new($_)
         $queueMessage
-        #$JCqueue.CloudQueue.AddMessageAsync($QueueMessage)
+        $JCqueue.CloudQueue.AddMessageAsync($QueueMessage)
     }
 }
