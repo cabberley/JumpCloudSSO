@@ -84,6 +84,8 @@ do {
     #validate we have records and send them to Log Analytics if we do'
     if ($JCResultCount -gt 0) {
         $JClimit = [int]::parse($response.Headers["X-Limit"])
+        $events = $response.Content | ConvertFrom-json
+        $LastrecordTimestamp = $events.timestamp[($events.count-1)].ToString
         Function New-BuildSignature (
             $customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource )
             {
@@ -99,9 +101,8 @@ do {
             return $authorization
         }
         
-        # Function to create and post the request
-        #Function Send-LogAnalyticsData( $customerId, $sharedKey, $body, $JCTablename, $TimeStampField)
-        #    {
+        # create and post the events to Log Analytics
+
             $method = "POST"
             $contentType = "application/json"
             $resource = "/api/logs"
@@ -125,11 +126,7 @@ do {
                 "time-generated-field" = $TimeStampField;
             }
             write-host "uri:$uri ... method:$method ... Ctype:$contentType ... Headers:$headers1 ... Body $body"
-            $response1 = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers1 -Body $body -UseBasicParsing
-#            return $response1.StatusCode
-        
-        #} 
-        #Send-LogAnalyticsData -customerId $customerId -sharedKey $sharedKey -body ([System.Text.Encoding]::UTF8.GetBytes($response)) -logType $JCTablename -TimeStampField $TimeStampField 
+            Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers1 -Body $body -UseBasicParsing
     }
     else{
 
@@ -143,8 +140,10 @@ do {
 write-host $response.Headers["X-Search_after"]
 write-host $response.headers.date
 if($response.Headers["X-Search_after"] -ne ''){
-    $property = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($(([datetime]::parseexact(($response.headers.date),"ddd, dd MMM yyyy HH:mm:ss Z",$null))), [System.TimeZoneInfo]::Local.Id, 'Greenwich Standard Time').Tostring('yyyy-MM-ddTHH:mm:ssZ')
-    Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{"SearchAfter" = ("'"+$response.Headers["X-Search_after"]+"'");"StartTime"=$property} -UpdateExisting
+    if($LastrecordTimestamp -eq ''){
+        $LastRecordTimestamp = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($(([datetime]::parseexact(($response.headers.date),"ddd, dd MMM yyyy HH:mm:ss Z",$null))), [System.TimeZoneInfo]::Local.Id, 'Greenwich Standard Time').Tostring('yyyy-MM-ddTHH:mm:ssZ')
+    }
+    Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{"SearchAfter" = ("'"+$response.Headers["X-Search_after"]+"'");"StartTime"=$LastrecordTimestamp} -UpdateExisting
 }
 # Write an information log with the current time.
 #$JCService = "ALL"
