@@ -23,7 +23,7 @@ import-module AzTable
 $JCService = $QueueItem                         #Which eventlog set to rerieve from JumpCloud
 $JCapiToken = $env:JumpCloudApiToken            #JumpCloud API
 $JCuri = $env:JumpCloudUri                      #Standard JumpCloud URI
-$JCStartTime = $env:JumpCloudStartTime          #Initial Start time to collect logs
+#$JCStartTime = $env:JumpCloudStartTime          #Initial Start time to collect logs
 $AzureWebJobsStorage =$env:AzureWebJobsStorage  #Storage Account to use for table to maintain state for log queries between executions
 $customerId = $env:workspaceId                  #Log Analytics Details
 $sharedKey =  $env:workspaceKey                 #Log Analytics Details
@@ -32,6 +32,9 @@ $TimeStampField = "timestamp"                   #define JumpCloud Timestamp fiel
 $JCSearchAfter = ""
 $totalrecordcount =0
 
+#fix date format
+$DateFix = Get-Date
+$JCStartTime = $DateFix.ToString('yyyy-MM-ddT00:00:00Z')
 # using Azure Table on Functions Azure Storage to maintain state between runs
 # Retrieve JumpCloud last retrieved record and Date-time or if first run create table
 $JCstorage =  New-AzStorageContext -ConnectionString $AzureWebJobsStorage
