@@ -238,6 +238,7 @@
                   "httpsOnly": true,
                   "clientAffinityEnabled": true,
                    "alwaysOn": true
+              }
           },
           {
               "type": "Microsoft.Web/sites/hostNameBindings",
