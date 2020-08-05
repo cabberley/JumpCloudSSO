@@ -25,7 +25,7 @@
               }
           },
           "JumpCloudStartTime": {
-              "type": "datetime",
+              "type": "string",
               "defaultValue": "2020-08-04T00:00:00Z",
               "metadata":{
                   "description": "This is required to start the function, it must be in the ISO8601 format and unless you have exception from JumpCloud must be less than 15 days prior to your first Function Trigger"
