@@ -220,10 +220,6 @@
                             "value": "[parameters('JumpCloudEventTypes')]"
                         },
                         {
-                            "name": "JumpCloudApiToken",
-                            "value": "[parameters('JumpCloudApiToken')]"
-                        },
-                        {
                             "name": "JumpCloudStartTime",
                             "value": "[parameters('JumpCloudStartTime')]"
                         },
