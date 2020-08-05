@@ -6,11 +6,12 @@ $currentUTCtime = (Get-Date).ToUniversalTime()
 
 # The 'IsPastDue' property is 'true' when the current function invocation is later than scheduled.
 if ($Timer.IsPastDue) {
-    Write-Host "PowerShell timer is running late!"
+    Write-Host "JumpCloud timer triggered and is running late! TIME: $currentUTCtime"
 }
-
+else {
 # Write an information log with the current time.
-Write-Host "PowerShell timer trigger function ran! TIME: $currentUTCtime"
+Write-Host "JumpCloud timer triggered and is running on time! TIME: $currentUTCtime"
+}
 
 #Retrieve Environment Variables
 $AzureWebJobsStorage =$env:AzureWebJobsStorage 
@@ -37,7 +38,6 @@ $JCEvents = $JCEventTypes.split(';')
 $JCEvents | ForEach-Object -Process { 
     if($check2 -like '* '+$_+' *'){
         $queueMessage = [Microsoft.Azure.Storage.Queue.CloudQueueMessage]::new($_)
-        $queueMessage
         $JCqueue.CloudQueue.AddMessageAsync($QueueMessage)
     }
 }

@@ -15,23 +15,21 @@
 param([string] $QueueItem, $TriggerMetadata)
 
 # Write out the queue message and insertion time to the information log.
-Write-Host "PowerShell queue trigger function processed work item: $QueueItem"
-Write-Host "Queue item insertion time: $($TriggerMetadata.InsertionTime)"
+Write-Output "JumpCloud: Queue trigger for work item: $QueueItem, Queue item insertion time: $($TriggerMetadata.InsertionTime)"
 
 import-module AzTable
 
 # Retrieve Environment Variables and prep other Variables for the JumpCloud API request
-$JCService = $QueueItem #Which eventlog set to rerieve from JumpCloud
-$JCapiToken = $env:JumpCloudApiToken  #JumpCloud API
-$JCuri = $env:JumpCloudUri #Standard JumpCloud URI
-$JCStartTime = $env:JumpCloudStartTime #Initial Start time to collect logs
-$AzureWebJobsStorage =$env:AzureWebJobsStorage 
-$customerId = $env:workspaceId  #Log Analytics Details
-$sharedKey =  $env:workspaceKey #Log Analytics Details
-$JCTablename = $env:AzureSentinelTable #"JumpCloudQTest" #LogAnalytics Tablename which will have '_CL' added to it by LogAnalytics
+$JCService = $QueueItem                         #Which eventlog set to rerieve from JumpCloud
+$JCapiToken = $env:JumpCloudApiToken            #JumpCloud API
+$JCuri = $env:JumpCloudUri                      #Standard JumpCloud URI
+$JCStartTime = $env:JumpCloudStartTime          #Initial Start time to collect logs
+$AzureWebJobsStorage =$env:AzureWebJobsStorage  #Storage Account to use for table to maintain state for log queries between executions
+$customerId = $env:workspaceId                  #Log Analytics Details
+$sharedKey =  $env:workspaceKey                 #Log Analytics Details
+$JCTablename = $env:AzureSentinelTable          #"JumpCloudQTest" #LogAnalytics Tablename which will have '_CL' added to it by LogAnalytics
+$TimeStampField = "timestamp"                   #define JumpCloud Timestamp field
 $JCSearchAfter = ""
-#define JumpCloud Timestamp field
-$TimeStampField = "timestamp"
 $totalrecordcount =0
 
 # using Azure Table on Functions Azure Storage to maintain state between runs
@@ -53,7 +51,9 @@ if($null -eq $row.StartTime){
 }
 $JCSearchAfter = $row.SearchAfter -replace "'",""
 $JCStartTime =  $row.StartTime
+if($null -eq $JCStartTime){$JCStartTime = $env:JumpCloudStartTime }
 #Get last run details from table
+Write-Output "$QueueItem - JCstarttime: $JCStartTime :Table: $row.StartTime :Enviro: $env:JumpCloudStartTime"
 
 do {
     #JumpCloud API limits 1000 records in return set, it notifies via Headers if there is more to ask for loop until we have less records than limit
@@ -68,19 +68,12 @@ do {
         $body = $body + ' "search_after": '+ $JCSearchAfter + ', '
     }
     $body = $body + '"start_time": "' + $JCStartTime +'"}'
-    Write-Host "Request Header"
-    Write-Host $headers
-    Write-Host $body
     #send request to JumpCloud API for latest event entries
     $response = Invoke-WebRequest -uri "$JCuri"  -Method 'POST' -Headers $headers -Body $body
-    write-host $response.headers
-    Write-Host $response.StatusCode
     $JCResultCount = 0
     $JCResultCount = [int]::parse($response.Headers["X-Result-Count"])
     $JCSearchAfter = $response.Headers["X-Search_after"]
     $totalrecordcount = $totalrecordcount + $JCResultCount
-    $JCResultCount
-    
     #validate we have records and send them to Log Analytics if we do'
     if ($JCResultCount -gt 0) {
         $JClimit = [int]::parse($response.Headers["X-Limit"])
@@ -100,9 +93,7 @@ do {
             $authorization = 'SharedKey {0}:{1}' -f $customerId,$encodedHash
             return $authorization
         }
-        
         # create and post the events to Log Analytics
-
             $method = "POST"
             $contentType = "application/json"
             $resource = "/api/logs"
@@ -118,32 +109,28 @@ do {
                 -contentType $contentType `
                 -resource $resource
             $uri = "https://" + $customerId + ".ods.opinsights.azure.com" + $resource + "?api-version=2016-04-01"
-        
             $headers1 = @{
                 "Authorization" = $signature;
                 "Log-Type" = $JCTablename;
                 "x-ms-date" = $rfc1123date;
                 "time-generated-field" = $TimeStampField;
             }
-            write-host "uri:$uri ... method:$method ... Ctype:$contentType ... Headers:$headers1 ... Body $body"
-            Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers1 -Body $body -UseBasicParsing
+            $response1 = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers1 -Body $body -UseBasicParsing
     }
     else{
-
-        Write-Output "No new JumpCloud logs are avaliable as of $currentUTCtime"
+        Write-Output "JumpCloud: No new $JCService JumpCloud logs are avaliable as at $currentUTCtime"
         break
-    
     }
 } until($JCResultCount -le $JCLimit)
 
 #store details in function storage table to retrieve next time function runs 
-write-host $response.Headers["X-Search_after"]
-write-host $response.headers.date
-if($response.Headers["X-Search_after"] -ne ''){
-    if($LastrecordTimestamp -eq ''){
-        $LastRecordTimestamp = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($(([datetime]::parseexact(($response.headers.date),"ddd, dd MMM yyyy HH:mm:ss Z",$null))), [System.TimeZoneInfo]::Local.Id, 'Greenwich Standard Time').Tostring('yyyy-MM-ddTHH:mm:ssZ')
+if($response.Headers.ContainsKey("X-Search_after")){
+    if($response.Headers["X-Search_after"] -ne ''){
+        if($LastrecordTimestamp -eq ''){
+            $LastRecordTimestamp = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($(([datetime]::parseexact(($response.headers.date),"ddd, dd MMM yyyy HH:mm:ss Z",$null))), [System.TimeZoneInfo]::Local.Id, 'Greenwich Standard Time').Tostring('yyyy-MM-ddTHH:mm:ssZ')
+        }
+        Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{"SearchAfter" = ("'"+$response.Headers["X-Search_after"]+"'");"StartTime"=$LastrecordTimestamp} -UpdateExisting
     }
-    Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{"SearchAfter" = ("'"+$response.Headers["X-Search_after"]+"'");"StartTime"=$LastrecordTimestamp} -UpdateExisting
 }
 # Write an information log with the current time.
-Write-Host "JumpCloud function ran using, Event Filter: $JCService, started: $currentUTCtime, Completed:"(Get-Date).ToUniversalTime()", Processed: $totalrecordcount records"
+Write-Output "JumpCloud: function ran using, Event Filter: $JCService, started: $currentUTCtime, Completed:"(Get-Date).ToUniversalTime()", Processed: $totalrecordcount records"
