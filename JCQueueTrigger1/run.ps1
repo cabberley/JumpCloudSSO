@@ -37,23 +37,21 @@ $totalrecordcount =0
 $JCstorage =  New-AzStorageContext -ConnectionString $AzureWebJobsStorage
 $StorageTable = Get-AzStorageTable -Name $JCTablename -Context $JCStorage -ErrorAction Ignore
 if($null -eq $storageTable.Name){  
-    New-AzStorageTable -Name $JCTablename -Context $JCstorage
+    $result = New-AzStorageTable -Name $JCTablename -Context $JCstorage
     $JCTable = (Get-AzStorageTable -Name $JCTablename -Context $JCstorage.Context).cloudTable
-    Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{'SearchAfter' = "'"+$JCSearchAfter+"'";"StartTime"=$JCStartTime}
+    $result = Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{'SearchAfter' = "'"+$JCSearchAfter+"'";"StartTime"=$JCStartTime} -UpdateExisting
 }
 Else {
     $JCTable = (Get-AzStorageTable -Name $JCTablename -Context $JCstorage.Context).cloudTable
 }
 $row = Get-azTableRow -table $JCTable -partitionKey $JCapiToken -RowKey $JCService -ErrorAction Ignore
 if($null -eq $row.StartTime){
-    Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{'SearchAfter' = "'"+$JCSearchAfter+"'";"StartTime"=$JCStartTime}
+    $result = Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{'SearchAfter' = "'"+$JCSearchAfter+"'";"StartTime"=$JCStartTime} -UpdateExisting
     $row = Get-azTableRow -table $JCTable -partitionKey $JCapiToken -RowKey $JCService -ErrorAction Ignore
 }
 $JCSearchAfter = $row.SearchAfter -replace "'",""
 $JCStartTime =  $row.StartTime
 if($null -eq $JCStartTime){$JCStartTime = $env:JumpCloudStartTime }
-#Get last run details from table
-Write-Output "$QueueItem - JCstarttime: $JCStartTime :Table: $row.StartTime :Enviro: $env:JumpCloudStartTime"
 
 do {
     #JumpCloud API limits 1000 records in return set, it notifies via Headers if there is more to ask for loop until we have less records than limit
@@ -76,9 +74,9 @@ do {
     $totalrecordcount = $totalrecordcount + $JCResultCount
     #validate we have records and send them to Log Analytics if we do'
     if ($JCResultCount -gt 0) {
-        $JClimit = [int]::parse($response.Headers["X-Limit"])
-        $events = $response.Content | ConvertFrom-json
-        $LastrecordTimestamp = $events.timestamp[($events.count-1)].ToString
+        $JCLimit = [int]::parse($response.Headers["X-Limit"])
+        #$events = $response.Content | ConvertFrom-json
+        #$LastRecordTimestamp = $events.timestamp[($events.count-1)].ToString
         Function New-BuildSignature (
             $customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource )
             {
@@ -115,21 +113,25 @@ do {
                 "x-ms-date" = $rfc1123date;
                 "time-generated-field" = $TimeStampField;
             }
-            $response1 = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers1 -Body $body -UseBasicParsing
+            $result = Invoke-WebRequest -Uri $uri -Method $method -ContentType $contentType -Headers $headers1 -Body $body -UseBasicParsing
     }
     else{
         Write-Output "JumpCloud: No new $JCService JumpCloud logs are avaliable as at $currentUTCtime"
         break
     }
-} until($JCResultCount -le $JCLimit)
+    write-output " Limit: $JCLimit; ResultCount: $JCResultCount; Totalsofar: $totalrecordcount"
+} until($JCResultCount -lt $JCLimit)
 
 #store details in function storage table to retrieve next time function runs 
 if($response.Headers.ContainsKey("X-Search_after")){
     if($response.Headers["X-Search_after"] -ne ''){
-        if($LastrecordTimestamp -eq ''){
-            $LastRecordTimestamp = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($(([datetime]::parseexact(($response.headers.date),"ddd, dd MMM yyyy HH:mm:ss Z",$null))), [System.TimeZoneInfo]::Local.Id, 'Greenwich Standard Time').Tostring('yyyy-MM-ddTHH:mm:ssZ')
-        }
-        Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{"SearchAfter" = ("'"+$response.Headers["X-Search_after"]+"'");"StartTime"=$LastrecordTimestamp} -UpdateExisting
+        #if($LastRecordTimestamp -eq ''){
+            #$LastRecordTimestamp = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId($(([datetime]::parseexact(($response.headers.date),"ddd, dd MMM yyyy HH:mm:ss Z",$null))), [System.TimeZoneInfo]::Local.Id, 'Greenwich Standard Time').Tostring('yyyy-MM-ddTHH:mm:ssZ')
+        #}
+        $jbody = ConvertFrom-json $response.Content
+        $LastRecordTimestamp= $jbody.timestamp[($jbody.count - 1)]
+        write-output $LastRecordTimestamp
+        $result = Add-AzTableRow -table $JCTable -PartitionKey $JCapiToken -RowKey $JCService -property @{"SearchAfter" = ("'"+$response.Headers["X-Search_after"]+"'");"StartTime"=$LastrecordTimestamp} -UpdateExisting
     }
 }
 # Write an information log with the current time.
