@@ -19,7 +19,7 @@ The simplest way to deploy is to launch the Deployment template from the Deploy 
 
 **NOTES:** 
 1. Where possible details in the Deployment Template have been prepopulated.
-2. The function name needs to be globally unique, a random character generator will generate several charactors to append to your entered name. Be aware that this name is also used for the associated storage account so if your prefix is too long the template will fail validation becuase the name is longer than the permitted length for a torage Account Name.
+2. The function name needs to be globally unique, a random character generator will generate several charactors to append to your entered name. Be aware that this name is also used for the associated storage account so if your prefix is too long the template will fail validation becuase the name is longer than the permitted length for a storage Account Name.
 3. Once successfully deployed the function will start triggering within 5 minutes and the inital request to JumpCloud will be for logs since the previous midnight UTC time. 
 
 
