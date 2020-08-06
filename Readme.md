@@ -2,6 +2,7 @@
 
 This Azure Function App will connect to the JumpCloud Rest-API using your JumpCloud api Token and retrieve the event logs and ingest them into a custom table called "JumpCloud" in your Log Anaytics Workspace used by Azure Sentinel.
 
+
 The Azure FUnction has bee setup to trigger once every 5 minutes and trigger a seperate execution for each log type listed in the configuration you setup. 
 
 ### Prerequisites
@@ -20,5 +21,6 @@ The simplest way to deploy is to launch the Deployment template from the Deploy 
 1. Where possible details in the Deployment Template have been prepopulated.
 2. The function name needs to be globally unique, a random character generator will generate several charactors to append to your entered name. Be aware that this name is also used for the associated storage account so if your prefix is too long the template will fail validation becuase the name is longer than the permitted length for a torage Account Name.
 3. Once successfully deployed the function will start triggering within 5 minutes and the inital request to JumpCloud will be for logs since the previous midnight UTC time. 
+
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fcabberley%2FJumpCloudSSO%2Fmaster%2Fazuredeploy_JumpCloud_API_FunctionApp.json)
